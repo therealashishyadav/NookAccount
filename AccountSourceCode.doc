@@ -1,0 +1,1324 @@
+Account Source Code
+==================
+
+Below is the complete source code for the Account module, including all classes, controllers, DTOs, exceptions, models, and services.
+
+---
+
+AccountApplication.java
+----------------------
+
+package com.Account;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+import com.Account.Model.Role;
+import com.Account.Model.User;
+import com.Account.Model.UserRespository;
+
+@SpringBootApplication
+public class AccountApplication implements CommandLineRunner {
+
+	@Autowired
+	private UserRespository userRepository;
+	
+	public static void main(String[] args) {
+		SpringApplication.run(AccountApplication.class, args);
+	}
+
+	@Override
+	public void run(String... args) throws Exception {
+
+		User adminAccount = userRepository.findByRole(Role.ADMIN);
+		
+		if(null == adminAccount) {
+			User user = new User();
+			
+			user.setEmail("admin");
+			user.setFirstName("admin");
+			user.setLastName("admin");
+			user.setRole(Role.ADMIN);
+			user.setPassword(new BCryptPasswordEncoder().encode("pass"));
+			userRepository.save(user);
+		}
+		
+	}
+
+}
+
+---
+
+Config/JwtAuthenticationFilter.java
+-----------------------------------
+
+package com.Account.Config;
+
+import java.io.IOException;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.Account.Services.JwtService;
+import com.Account.Services.UserService;
+
+import io.micrometer.common.util.StringUtils;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+
+@Component
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+	@Autowired
+	private JwtService jwtService;
+
+	@Autowired
+	private UserService userService;
+
+	@Override
+	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+			throws ServletException, IOException {
+
+		final String authHeader = request.getHeader("Authorization");
+
+		final String jwt;
+		final String userEmail;
+
+		if (StringUtils.isEmpty(authHeader)
+				|| !org.apache.commons.lang3.StringUtils.startsWith(authHeader, "Bearer ")) {
+			filterChain.doFilter(request, response);
+			return;
+		}
+		
+		jwt = authHeader.substring(7);
+		userEmail = jwtService.extractUserName(jwt);
+		if (StringUtils.isNotEmpty(userEmail) && SecurityContextHolder.getContext().getAuthentication() == null) {
+			UserDetails userDetails = userService.userDetailsService().loadUserByUsername(userEmail);
+
+			if (jwtService.isTokenValid(jwt, userDetails)) {
+				SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+
+				UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(userDetails, null,
+						userDetails.getAuthorities());
+
+				token.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+				securityContext.setAuthentication(token);
+				SecurityContextHolder.setContext(securityContext);
+			}
+
+		}
+		filterChain.doFilter(request, response);
+
+	}
+}
+
+---
+
+Config/SecurityConfig.java
+--------------------------
+
+package com.Account.Config;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.Account.Model.Role;
+import com.Account.Services.UserService;
+
+import io.jsonwebtoken.io.IOException;
+import jakarta.security.auth.message.callback.PrivateKeyCallback.Request;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.config.http.SessionCreationPolicy;
+
+@Configuration
+@EnableWebSecurity
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+	@Autowired
+	private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+	@Autowired
+	private UserService userService;
+
+	@Bean
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		http.cors().and().csrf(AbstractHttpConfigurer::disable)
+				.authorizeHttpRequests(request -> request.requestMatchers("/api/v1/auth/**").permitAll()
+//						.requestMatchers("/api/v1/auth/signup").permitAll()
+						.requestMatchers("/api/v1/admin/**").hasRole("ADMIN").requestMatchers("/api/v1/user/**")
+						.hasRole("USER").requestMatchers("/api/v1/management/**").hasRole("MANAGEMENT")
+						.requestMatchers("/api/v1/owner/**").hasRole("OWNER").anyRequest().authenticated())
+
+				.sessionManagement(manager -> manager.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.authenticationProvider(authenticationProvider())
+				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+				.exceptionHandling(e -> e.accessDeniedHandler(new AccessDeniedHandlerImpl() {
+					@Override
+					public void handle(HttpServletRequest request, HttpServletResponse response,
+							AccessDeniedException accessDeniedException) throws java.io.IOException, ServletException {
+						System.out.println(
+								"Access Denied " + request.getUserPrincipal() + " on URI " + request.getRequestURI());
+						response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access Denied");
+					}
+				}).authenticationEntryPoint((request, response, authException) -> {
+					response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+				}));
+
+		return http.build();
+
+	}
+
+	@Bean
+	public AuthenticationProvider authenticationProvider() {
+		DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider();
+		authenticationProvider.setUserDetailsService(userService.userDetailsService());
+		authenticationProvider.setPasswordEncoder(passwordEncoder());
+		return authenticationProvider;
+	}
+
+	@Bean
+	public PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder();
+	}
+
+	@Bean
+	public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+		return config.getAuthenticationManager();
+	}
+
+}
+
+---
+
+Config/WebConfig.java
+---------------------
+
+package com.Account.Config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOrigins("http://localhost:4200") // Allow only your frontend to make requests
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Allow specific methods
+                .allowedHeaders("*") // Allow any headers
+                .allowCredentials(true); // Allow sending cookies if needed
+    }
+}
+
+---
+
+Controller/AdminController.java
+------------------------------
+
+package com.Account.Controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/v1/ADMIN")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200")
+public class AdminController {
+	
+	public AdminController() {
+		super();
+	}
+
+	@GetMapping
+	public ResponseEntity<String> sayHello(){
+		return ResponseEntity.ok("Admin LoggedIn");
+	}
+
+	@PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/admin")
+    public ResponseEntity<String> helloAdmin(){
+        return ResponseEntity.ok("Hello Admin");
+    }
+
+    @PreAuthorize("hasRole('USER')")
+    @GetMapping("/user")
+    public ResponseEntity<String> helloUser(){
+        return ResponseEntity.ok("Hello User");
+    }
+	
+    @PreAuthorize("hasRole('MANAGEMENT')")
+    @GetMapping("/management")
+    public ResponseEntity<String> helloManagement(){
+        return ResponseEntity.ok("Hello Management");
+    }
+
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @GetMapping("/customer")
+    public ResponseEntity<String> helloCustomer(){
+        return ResponseEntity.ok("Hello Customer");
+    }
+    
+}
+
+---
+
+Controller/AuthenticationController.java
+----------------------------------------
+
+package com.Account.Controller;
+
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.Account.DTO.JwtAuthenticationResponse;
+import com.Account.DTO.RefreshTokenRequest;
+import com.Account.DTO.SigninRequest;
+import com.Account.DTO.SignupRequest;
+import com.Account.Model.Role;
+import com.Account.Model.User;
+import com.Account.Model.UserRespository;
+import com.Account.Services.AuthenticationService;
+import com.Account.Services.UserService;
+
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200")
+public class AuthenticationController {
+
+	private final SecurityFilterChain securityFilterChain;
+
+	@Autowired
+	private AuthenticationService authenticationService;
+
+	@Autowired
+	private UserService userService;
+
+	@Autowired
+	private UserRespository userRespository;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	AuthenticationController(SecurityFilterChain securityFilterChain) {
+		this.securityFilterChain = securityFilterChain;
+	}
+
+	@PostMapping("/signup")
+	public ResponseEntity<Map<String, String>> signup(@RequestBody SignupRequest signupRequest) {
+		User user = new User();
+		user.setFirstName(signupRequest.getFirstName());
+		user.setLastName(signupRequest.getLastName());
+		user.setEmail(signupRequest.getEmail());
+		user.setPassword(passwordEncoder.encode(signupRequest.getPassword()));
+		user.setPhone(signupRequest.getPhone());
+		user.setRole(signupRequest.getRole());
+//		return ResponseEntity.ok(Map.of("message", "User registered successfully"));
+		   try {
+		        authenticationService.signup(signupRequest); 
+//				userRespository.save(user);
+		        return ResponseEntity.ok(Map.of("message", "User registered successfully"));
+		    } catch (IllegalArgumentException e) {
+		        return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+		    }
+	}
+
+	@PostMapping("/signin")
+	public ResponseEntity<JwtAuthenticationResponse> signin(@RequestBody SigninRequest signinRequest) {
+
+		return ResponseEntity.ok(authenticationService.signin(signinRequest));
+	}
+
+	@PostMapping("/refresh")
+	public ResponseEntity<JwtAuthenticationResponse> refresh(@RequestBody RefreshTokenRequest refreshTokenRequest) {
+		return ResponseEntity.ok(authenticationService.refereshToken(refreshTokenRequest));
+	}
+
+	@GetMapping("/role/{email}")
+	public ResponseEntity<Role> getRole(@PathVariable String email) {
+		Role roles = this.userService.getRole(email);
+		return ResponseEntity.ok(roles);
+	}
+
+}
+
+---
+
+Controller/ManagementController.java
+------------------------------------
+
+package com.Account.Controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+
+@Controller
+@RequestMapping("/api/v1/MANAGEMENT")
+@CrossOrigin(origins = "http://localhost:4200")
+public class ManagementController {
+
+	public ManagementController() {
+		super();
+	}
+	
+	@GetMapping
+	public ResponseEntity<String> sayHello(){
+		return ResponseEntity.ok("Management Loggedin");
+	}
+	
+	
+}
+
+---
+
+Controller/OwnerController.java
+-------------------------------
+
+package com.Account.Controller;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.Account.Model.User;
+import com.Account.Services.UserService;
+
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/v1/onwer")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200")
+public class OwnerController{
+	
+	@Autowired
+	private UserService userService;
+
+	@GetMapping
+	public ResponseEntity<Map<String, String>> sayHello() {
+		return ResponseEntity.ok(Map.of("message", "User LoggedIn"));
+
+	}
+
+	@GetMapping("/")
+	public ResponseEntity<List<User>> getAllUsers() {
+		List<User> user = userService.getAllUsers();
+		return new ResponseEntity<>(user, HttpStatus.OK);
+	}
+	
+	@GetMapping("/{id}")
+	public ResponseEntity<User> getUserById(@PathVariable long id) {
+		User user = userService.getUserById(id);		
+		if(user != null) {
+			return new ResponseEntity<>(user, HttpStatus.OK);
+		}else{
+			return new ResponseEntity<>(user, HttpStatus.NOT_FOUND);
+		}
+	}	
+	
+	
+	@PutMapping("/")
+	public ResponseEntity<User> updateUser(@PathVariable long id, @RequestBody User updateUser){
+		User user = userService.updateUser(id, updateUser);
+		if(user != null) {
+			return new ResponseEntity<>(user, HttpStatus.OK);
+		}else {
+			return new ResponseEntity<>(user, HttpStatus.NOT_FOUND);
+		}
+	}
+	
+	@DeleteMapping("/")
+	public ResponseEntity<Void> deleteUser(@PathVariable long id){
+		boolean isDeleted = userService.deteleUser(id);
+		if(isDeleted){
+			return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+		}else {
+			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+		}
+	}	
+}
+
+---
+
+Controller/UserController.java
+-----------------------------
+
+package com.Account.Controller;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.Account.Model.Role;
+import com.Account.Model.User;
+import com.Account.Services.UserService;
+
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/v1/USER")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200")
+public class UserController {
+	
+	@Autowired
+	private UserService userService;
+
+	@GetMapping
+	public ResponseEntity<Map<String, String>> sayHello() {
+		return ResponseEntity.ok(Map.of("message", "User LoggedIn"));
+
+	}
+
+	@GetMapping("/")
+	public ResponseEntity<List<User>> getAllUsers() {
+		List<User> user = userService.getAllUsers();
+		return new ResponseEntity<>(user, HttpStatus.OK);
+	}
+	
+	@GetMapping("/{id}")
+	public ResponseEntity<User> getUserById(@PathVariable long id) {
+		User user = userService.getUserById(id);		
+		if(user != null) {
+			return new ResponseEntity<>(user, HttpStatus.OK);
+		}else{
+			return new ResponseEntity<>(user, HttpStatus.NOT_FOUND);
+		}
+	}	
+	
+	
+	@PutMapping("/")
+	public ResponseEntity<User> updateUser(@PathVariable long id, @RequestBody User updateUser){
+		User user = userService.updateUser(id, updateUser);
+		if(user != null) {
+			return new ResponseEntity<>(user, HttpStatus.OK);
+		}else {
+			return new ResponseEntity<>(user, HttpStatus.NOT_FOUND);
+		}
+	}
+	
+	@DeleteMapping("/")
+	public ResponseEntity<Void> deleteUser(@PathVariable long id){
+		boolean isDeleted = userService.deteleUser(id);
+		if(isDeleted){
+			return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+		}else {
+			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+		}
+	}	
+}
+
+---
+
+DTO/JwtAuthenticationResponse.java
+----------------------------------
+
+package com.Account.DTO;
+
+import com.Account.Model.Role;
+
+public class JwtAuthenticationResponse {
+
+	private String token;
+	
+	private String refreshToken;
+
+	public String getToken() {
+		return token;
+	}
+
+	public void setToken(String token) {
+		this.token = token;
+	}
+
+	public String getRefreshToken() {
+		return refreshToken;
+	}
+
+	public void setRefreshToken(String refreshToken) {
+		this.refreshToken = refreshToken;
+	}
+
+}
+
+---
+
+DTO/RefreshTokenRequest.java
+----------------------------
+
+package com.Account.DTO;
+
+public class RefreshTokenRequest {
+
+	private String token;
+
+	public String getToken() {
+		return token;
+	}
+
+	public void setToken(String token) {
+		this.token = token;
+	}
+
+}
+
+---
+
+DTO/SigninRequest.java
+----------------------
+
+package com.Account.DTO;
+
+public class SigninRequest {
+	private String email;
+	private String password;
+	public String getEmail() {
+		return email;
+	}
+	public void setEmail(String email) {
+		this.email = email;
+	}
+	public String getPassword() {
+		return password;
+	}
+	public void setPassword(String password) {
+		this.password = password;
+	}
+}
+
+---
+
+DTO/SignupRequest.java
+----------------------
+
+package com.Account.DTO;
+
+import com.Account.Model.Role;
+
+import lombok.Data;
+
+@Data
+public class SignupRequest {
+
+	private String firstName;
+	private String lastName;
+	private String email;
+	private String password;
+	private String phone;
+	private String confirm_password;
+	private Role role;
+	
+	public Role getRole() {
+		return role;
+	}
+	public void setRole(Role role) {
+		this.role = role;
+	}
+	public String getPhone() {
+		return phone;
+	}
+	public void setPhone(String phone) {
+		this.phone = phone;
+	}
+	public String getFirstName() {
+		return firstName;
+	}
+	public void setFirstName(String firstName) {
+		this.firstName = firstName;
+	}
+	public String getLastName() {
+		return lastName;
+	}
+	public void setLastName(String lastName) {
+		this.lastName = lastName;
+	}
+	public String getEmail() {
+		return email;
+	}
+	public void setEmail(String email) {
+		this.email = email;
+	}
+	public String getPassword() {
+		return password;
+	}
+	public void setPassword(String password) {
+		this.password = password;
+	}
+
+	public SignupRequest(String firstName, String lastName, String email, String password, String phone,
+			String confirm_password, Role role) {
+		super();
+		this.firstName = firstName;
+		this.lastName = lastName;
+		this.email = email;
+		this.password = password;
+		this.phone = phone;
+		this.confirm_password = confirm_password;
+		this.role = role;
+	}
+	public String getConfirm_password() {
+		return confirm_password;
+	}
+	public void setConfirm_password(String confirm_password) {
+		this.confirm_password = confirm_password;
+	}
+	public SignupRequest() {
+		super();
+	}
+}
+
+---
+
+Exception/GlobalExceptionHandler.java
+-------------------------------------
+
+package com.Account.Exception;
+
+import java.nio.file.AccessDeniedException;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<String> handleAccessDeniedException(AccessDeniedException ex) {
+        System.out.println("403 Forbidden error occurred: " + ex.getMessage());
+        return new ResponseEntity<>("Access Denied!", HttpStatus.FORBIDDEN);
+    }
+    
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(ex.getMessage());
+    }
+}
+
+---
+
+Model/Role.java
+---------------
+
+package com.Account.Model;
+
+public enum Role {
+
+	ADMIN,
+	USER,
+	MANAGEMENT,
+	OWNER,
+}
+
+---
+
+Model/User.java
+---------------
+
+package com.Account.Model;
+
+import java.util.Collection;
+import java.util.List;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Data;
+
+@Data
+@Entity
+@Table(name = "user")
+public class User implements UserDetails {
+
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Integer id;
+	
+	private String firstName;
+	private String lastName;
+	private String email;
+	private String phone;
+	private String password;
+	private String confirm_password;
+	private Role role;
+	
+	public String getConfirm_password() {
+		return confirm_password;
+	}
+
+	public void setConfirm_password(String confirm_password) {
+		this.confirm_password = confirm_password;
+	}
+
+	public String getPhone() {
+		return phone;
+	}
+
+	public void setPhone(String phone) {
+		this.phone = phone;
+	}
+
+	public Integer getId() {
+		return id;
+	}
+
+	public void setId(Integer id) {
+		this.id = id;
+	}
+
+	public String getFirstName() {
+		return firstName;
+	}
+
+	public void setFirstName(String firstName) {
+		this.firstName = firstName;
+	}
+
+	public String getLastName() {
+		return lastName;
+	}
+
+	public void setLastName(String lastName) {
+		this.lastName = lastName;
+	}
+
+	public String getEmail() {
+		return email;
+	}
+
+	public void setEmail(String email) {
+		this.email = email;
+	}
+
+	public Role getRole() {
+		return role;
+	}
+
+	public void setRole(Role role) {
+		this.role = role;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
+	}
+
+	@Override
+	public Collection<? extends GrantedAuthority> getAuthorities() {
+		return List.of(new SimpleGrantedAuthority(role.name()));
+	}
+
+	@Override
+	public String getUsername() {
+		return email;
+	}
+
+	@Override
+	public String getPassword() {
+		return password;
+	}
+
+	public User(Integer id, String firstName, String lastName, String email, String phone, String password,
+			String confirm_password, Role role) {
+		super();
+		this.id = id;
+		this.firstName = firstName;
+		this.lastName = lastName;
+		this.email = email;
+		this.phone = phone;
+		this.password = password;
+		this.confirm_password = confirm_password;
+		this.role = role;
+	}
+
+	public User() {
+		super();
+	}
+
+}
+
+---
+
+Model/UserRespository.java
+-------------------------
+
+package com.Account.Model;
+
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface UserRespository extends JpaRepository<User, Integer> {
+
+	Optional<User> findByEmail(String email);
+
+	boolean existsByEmail(String email);
+
+	User findByRole(Role role);
+
+	Optional<User> findById(long id);
+
+	boolean existsByPhone(String phone);
+
+}
+
+---
+
+Services/AuthenticationService.java
+-----------------------------------
+
+package com.Account.Services;
+
+import com.Account.DTO.JwtAuthenticationResponse;
+import com.Account.DTO.RefreshTokenRequest;
+import com.Account.DTO.SigninRequest;
+import com.Account.DTO.SignupRequest;
+import com.Account.Model.User;
+
+public interface AuthenticationService {
+
+	User signup(SignupRequest signupRequest);
+		
+	JwtAuthenticationResponse signin(SigninRequest signinRequest);
+
+	public JwtAuthenticationResponse refereshToken(RefreshTokenRequest refreshTokenRequest);
+
+}
+
+---
+
+Services/AuthenticationServiceImpl.java
+---------------------------------------
+
+package com.Account.Services;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Set;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.Account.DTO.JwtAuthenticationResponse;
+import com.Account.DTO.RefreshTokenRequest;
+import com.Account.DTO.SigninRequest;
+import com.Account.DTO.SignupRequest;
+import com.Account.Model.Role;
+import com.Account.Model.User;
+import com.Account.Model.UserRespository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class AuthenticationServiceImpl implements AuthenticationService {
+
+	@Autowired
+	private UserRespository userRepository;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	@Autowired
+	private AuthenticationManager authenticationManager;
+
+	@Autowired
+	private JwtService jwtService;
+
+	public User signup(SignupRequest signupRequest) {
+
+		String email = signupRequest.getEmail() != null ? signupRequest.getEmail().trim() : "";
+		String firstname = signupRequest.getFirstName() != null ? signupRequest.getFirstName().trim() : "";
+		String lastname = signupRequest.getLastName() != null ? signupRequest.getLastName().trim() : "";
+		String phone = signupRequest.getPhone() != null ? signupRequest.getPhone().trim() : "";
+		String password = signupRequest.getPassword() != null ? signupRequest.getPassword().trim() : "";
+		String confirmPassword = signupRequest.getConfirm_password() != null
+				? signupRequest.getConfirm_password().trim()
+				: "";
+
+		firstname = firstname.replaceAll("\s{2,}", " ");
+		lastname = lastname.replaceAll("\s{2,}", " ");
+
+		List<String> weakPassword = List.of("12345678", "123456789", "1234567890", "01234567", "qwerty", "admin",
+				"87654321", "76543210", "password");
+
+		if (email.isEmpty() || !email.matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}$")) {
+			throw new IllegalArgumentException("Invalid email format");
+		}
+
+		if (firstname.isEmpty() || firstname.length() < 2 || !firstname.matches("^[A-Za-z ]+$")) {
+			throw new IllegalArgumentException("First name must be at least 2 characters and only letters");
+		}
+
+		if (lastname.isEmpty() || lastname.length() < 2 || !lastname.matches("^[A-Za-z ]+$")) {
+			throw new IllegalArgumentException("Last name must be at least 2 characters and only letters");
+		}
+
+		if (phone.isEmpty() || phone.length() != 10) {
+			throw new IllegalArgumentException("Invalid phone number. Must be 10 digits starting with 6-9");
+		}
+
+		if (password.isEmpty() || password.length() < 8) {
+			throw new IllegalArgumentException("Password must be at least 8 characters");
+		}
+		
+		if (userRepository.existsByEmail(email)) {
+	        throw new IllegalArgumentException("Email already in use");
+	    }
+
+	    if (userRepository.existsByPhone(phone)) {
+	        throw new IllegalArgumentException("Phone number already in use");
+	    }
+
+		User user = new User();
+		user.setEmail(email);
+		user.setFirstName(firstname);
+		user.setLastName(lastname);
+		user.setPhone(phone);
+		user.setRole(Role.USER);
+		user.setPassword(passwordEncoder.encode(password));
+		System.out.println("Saved");
+		return userRepository.save(user);
+
+	}
+
+	public JwtAuthenticationResponse signin(SigninRequest signinRequest) {
+
+		try {
+
+			authenticationManager.authenticate(
+					new UsernamePasswordAuthenticationToken(signinRequest.getEmail(), signinRequest.getPassword()));
+
+			var user = userRepository.findByEmail(signinRequest.getEmail())
+					.orElseThrow(() -> new IllegalArgumentException("Invalid"));
+
+			var jwt = jwtService.generateToken(user);
+			var refreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
+
+			JwtAuthenticationResponse jwtAuthenticationResponse = new JwtAuthenticationResponse();
+
+			jwtAuthenticationResponse.setToken(jwt);
+			jwtAuthenticationResponse.setRefreshToken(refreshToken);
+
+			return jwtAuthenticationResponse;
+
+		} catch (Exception e) {
+			System.out.println(e);
+			return null;
+		}
+	}
+
+	public JwtAuthenticationResponse refereshToken(RefreshTokenRequest refreshTokenRequest) {
+		try {
+			String userEmail = jwtService.extractUserName(refreshTokenRequest.getToken());
+			User user = userRepository.findByEmail(userEmail).orElseThrow();
+			if (jwtService.isTokenValid(refreshTokenRequest.getToken(), user)) {
+				var jwt = jwtService.generateToken(user);
+
+				JwtAuthenticationResponse jwtAuthenticationResponse = new JwtAuthenticationResponse();
+
+				jwtAuthenticationResponse.setToken(jwt);
+				jwtAuthenticationResponse.setRefreshToken(refreshTokenRequest.getToken());
+				return jwtAuthenticationResponse;
+			}
+		} catch (Exception e) {
+
+			System.out.println(e);
+
+		}
+		return null;
+	}
+
+}
+
+---
+
+Services/JwtService.java
+------------------------
+
+package com.Account.Services;
+
+import java.util.Map;
+
+import org.springframework.security.core.userdetails.UserDetails;
+
+public interface JwtService {
+
+	String generateToken(UserDetails userDetails);
+
+	String extractUserName(String token);
+	
+	 boolean isTokenValid(String token, UserDetails userDetails);
+
+	String generateRefreshToken(Map<String, Object> extraClaims, UserDetails userDetails); 
+
+}
+
+---
+
+Services/JwtServiceImpl.java
+----------------------------
+
+package com.Account.Services;
+
+import java.util.Date;
+import java.util.Map;
+import java.security.Key;
+import java.util.function.Function;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+
+@Service
+public class JwtServiceImpl implements JwtService{
+	
+	public String generateToken(UserDetails userDetails) {
+		return Jwts.builder().setSubject(userDetails.getUsername())
+				.setIssuedAt(new Date(System.currentTimeMillis()))
+				.setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 24))
+				.signWith(getSigninKey(), SignatureAlgorithm.HS256).compact();
+	}
+	
+	public String generateRefreshToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+		return Jwts.builder().setClaims(extraClaims).setSubject(userDetails.getUsername())
+				.setIssuedAt(new Date(System.currentTimeMillis()))
+				.setExpiration(new Date(System.currentTimeMillis() + 604800000))
+				.signWith(getSigninKey(), SignatureAlgorithm.HS256).compact();
+	}
+
+	private Key getSigninKey() {
+	    byte[] key = Decoders.BASE64.decode("q4JjknVjndVi5B1u6WqBl+S3rXWk4Hrp12qFZRfTcys=");
+	    return Keys.hmacShaKeyFor(key);
+	}
+
+	private <T> T extractClaim(String token, Function<Claims, T> claimResolvers) {
+		final Claims claims = extractAllClaims(token);
+		return claimResolvers.apply(claims);
+	}
+		
+	private Claims extractAllClaims(String token) {
+		return Jwts.parserBuilder().setSigningKey(getSigninKey()).build().parseClaimsJws(token).getBody();
+	}
+	
+	public String extractUserName(String token) {
+		return extractClaim(token, Claims::getSubject);
+	}
+	
+	public boolean isTokenValid(String token, UserDetails userDetails) {
+		final String username = extractUserName(token);
+		return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+	}
+	
+	public boolean isTokenExpired(String token) {
+		return extractClaim(token, Claims::getExpiration).before(new Date());
+	}
+
+}
+
+---
+
+Services/UserService.java
+-------------------------
+
+package com.Account.Services;
+
+import java.util.List;
+
+import org.springframework.security.core.userdetails.UserDetailsService;
+
+import com.Account.Model.Role;
+import com.Account.Model.User;
+
+public interface UserService {
+
+	UserDetailsService userDetailsService();
+
+	List<User> getAllUsers();
+
+	User getUserById(long id);
+
+	User updateUser(long id, User updateUser);
+
+	boolean deteleUser(long id);
+
+	Role getRole(String email);
+
+}
+
+---
+
+Services/UserServiceImpl.java
+-----------------------------
+
+package com.Account.Services;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import com.Account.Model.Role;
+import com.Account.Model.User;
+import com.Account.Model.UserRespository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class UserServiceImpl implements UserService {
+	
+	@Autowired
+	private UserRespository userRepository;
+
+	@Override
+	public final UserDetailsService userDetailsService() {
+		return new UserDetailsService() {
+			
+			@Override
+			public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+				return userRepository.findByEmail(username).orElseThrow(() -> new UsernameNotFoundException("User Not Found"));
+			}
+		};
+	}
+
+	@Override
+	public List<User> getAllUsers() {
+		return userRepository.findAll();
+	}
+
+	@Override
+	public User getUserById(long id) {
+		return userRepository.findById(id).orElse(null);
+	}
+
+	@Override
+	public User updateUser(long id, User updateUser) {
+		return userRepository.findById(id).map( user ->{
+			user.setFirstName(updateUser.getFirstName());
+			user.setLastName(updateUser.getLastName());
+			user.setEmail(updateUser.getEmail());
+			user.setPhone(updateUser.getPhone());
+			return userRepository.save(user);
+		}).orElse(null);
+	}
+
+	@Override
+	public boolean deteleUser(long id) {
+		return userRepository.findById(id).map( user ->{
+			userRepository.delete(user);
+			return true;
+		}).orElse(false);
+	}
+
+	@Override
+	public Role getRole(String email) {
+		return this.userRepository.findByEmail(email).map(User::getRole)
+				.orElseThrow(() -> new RuntimeException("User not found"));
+	}
+
+}
+
+---
+
+End of Account module source code.
