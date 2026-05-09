@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/ADMIN")
-@RequiredArgsConstructor
+//@RequiredArgsConstructor
 @CrossOrigin(origins = "http://localhost:4200")
 public class AdminController {
 	
