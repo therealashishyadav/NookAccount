@@ -23,7 +23,7 @@ public class User implements UserDetails {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Integer id;
-	
+
 	private String firstName;
 	private String lastName;
 	private String email;
@@ -31,8 +31,6 @@ public class User implements UserDetails {
 	private String password;
 	private String confirm_password;
 	private Role role;
-	
-	
 
 	public String getConfirm_password() {
 		return confirm_password;
@@ -100,7 +98,6 @@ public class User implements UserDetails {
 		return List.of(new SimpleGrantedAuthority(role.name()));
 	}
 
-	
 	@Override
 	public String getUsername() {
 		return email;
@@ -110,8 +107,6 @@ public class User implements UserDetails {
 	public String getPassword() {
 		return password;
 	}
-
-	
 
 	public User(Integer id, String firstName, String lastName, String email, String phone, String password,
 			String confirm_password, Role role) {
@@ -133,26 +128,22 @@ public class User implements UserDetails {
 
 	@Override
 	public boolean isAccountNonExpired() {
-		// TODO Auto-generated method stub
-		return false;
+		return true;
 	}
 
 	@Override
 	public boolean isAccountNonLocked() {
-		// TODO Auto-generated method stub
-		return false;
+		return true;
 	}
 
 	@Override
 	public boolean isCredentialsNonExpired() {
-		// TODO Auto-generated method stub
-		return false;
+		return true;
 	}
 
 	@Override
 	public boolean isEnabled() {
-		// TODO Auto-generated method stub
-		return false;
+		return true;
 	}
 
 }

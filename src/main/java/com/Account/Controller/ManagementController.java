@@ -9,8 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 
 @Controller
-@RequestMapping("/api/v1/MANAGEMENT")
-@CrossOrigin(origins = "http://localhost:4200")
+@RequestMapping("/api/v1/management")
 public class ManagementController {
 
 	public ManagementController() {

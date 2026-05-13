@@ -7,12 +7,16 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                .allowedOrigins("http://localhost:4200") // Allow only your frontend to make requests
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Allow specific methods
-                .allowedHeaders("*") // Allow any headers
-                .allowCredentials(true); // Allow sending cookies if needed
-    }
+	@Override
+	public void addCorsMappings(CorsRegistry registry) {
+	    registry.addMapping("/**")
+	            .allowedOrigins(
+	                "http://localhost:4200",
+	                "https://nookly-frontend-hslj.vercel.app",   // ADD THIS
+	                "https://apigateway-x0ku.onrender.com"        // ADD THIS
+	            )
+	            .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+	            .allowedHeaders("*")
+	            .allowCredentials(true);
+	}
 }

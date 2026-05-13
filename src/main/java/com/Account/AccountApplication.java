@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import com.Account.Model.Role;
@@ -12,7 +11,6 @@ import com.Account.Model.User;
 import com.Account.Model.UserRespository;
 
 @SpringBootApplication
-@EnableDiscoveryClient
 public class AccountApplication implements CommandLineRunner {
 
 	@Autowired

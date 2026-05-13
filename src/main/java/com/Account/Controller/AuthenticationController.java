@@ -28,8 +28,6 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/auth")
-//@RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200")
 public class AuthenticationController {
 
 	private final SecurityFilterChain securityFilterChain;

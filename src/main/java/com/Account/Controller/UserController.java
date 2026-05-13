@@ -23,9 +23,7 @@ import com.Account.Services.UserService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/USER")
-@RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200")
+@RequestMapping("/api/v1/user")
 public class UserController {
 	
 	@Autowired
