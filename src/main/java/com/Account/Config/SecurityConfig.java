@@ -45,6 +45,7 @@ public class SecurityConfig {
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		http.cors().and().csrf(AbstractHttpConfigurer::disable)
 				.authorizeHttpRequests(request -> request.requestMatchers("/api/v1/auth/**").permitAll()
+						.requestMatchers("/health", "/actuator", "/actuator/**").permitAll()
 //						.requestMatchers("/api/v1/auth/signup").permitAll()
 						.requestMatchers("/api/v1/admin/**").hasRole("ADMIN").requestMatchers("/api/v1/user/**")
 						.hasRole("USER").requestMatchers("/api/v1/management/**").hasRole("MANAGEMENT")
