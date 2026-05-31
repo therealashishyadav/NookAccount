@@ -115,7 +115,7 @@ public class PasswordResetService {
             "If you did not request this, please ignore this email.\n\n" +
             "— The CribUp Team"
         );
-        message.setFrom("noreply@cribup.in"); // must match MAIL_USERNAME in env vars
+        message.setFrom("crib.support@gmail.com"); // must match MAIL_USERNAME in env vars
         mailSender.send(message);
     }
 }
