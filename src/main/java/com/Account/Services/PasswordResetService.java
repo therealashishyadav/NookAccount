@@ -1,15 +1,13 @@
 package com.Account.Services;
 
-// ════════════════════════════════════════════════════════════════════════════
 // FILE: src/main/java/com/Account/Services/PasswordResetService.java
-// NEW FILE — create this
-// ════════════════════════════════════════════════════════════════════════════
 
 import com.Account.Model.PasswordResetToken;
 import com.Account.Model.PasswordResetTokenRepository;
 import com.Account.Model.User;
 import com.Account.Model.UserRespository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,14 +32,19 @@ public class PasswordResetService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    // Reads MAIL_USERNAME from application.properties / Render env vars
+    // Must match exactly the Gmail account used for SMTP
+    @Value("${spring.mail.username}")
+    private String mailFrom;
+
     // ── STEP 1: User submits email → generate OTP → send email ───────────────
     @Transactional
     public void sendOtp(String email) {
 
-        // Check user exists — don't reveal if they don't (security best practice)
+        // Check user exists
+        // Silently return if not — don't reveal whether email is registered
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) {
-            // Silently return — don't tell attacker the email doesn't exist
             return;
         }
 
@@ -51,11 +54,11 @@ public class PasswordResetService {
         // Generate a secure 6-digit OTP
         String otp = generateOtp();
 
-        // Save OTP to database (expires in 15 minutes)
+        // Save OTP to database — expires in 15 minutes
         PasswordResetToken resetToken = new PasswordResetToken(otp, email);
         tokenRepository.save(resetToken);
 
-        // Send email
+        // Send OTP to user's email
         sendOtpEmail(email, otp, userOpt.get().getFirstName());
     }
 
@@ -67,7 +70,6 @@ public class PasswordResetService {
 
         PasswordResetToken token = tokenOpt.get();
 
-        // Check OTP matches and is not expired
         if (token.isExpired()) return false;
         if (!token.getOtp().equals(otp)) return false;
 
@@ -78,10 +80,9 @@ public class PasswordResetService {
     @Transactional
     public boolean resetPassword(String email, String otp, String newPassword) {
 
-        // Re-verify OTP before resetting (security: double check)
+        // Re-verify OTP before allowing password change
         if (!verifyOtp(email, otp)) return false;
 
-        // Find user and update password
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) return false;
 
@@ -89,20 +90,20 @@ public class PasswordResetService {
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        // Mark OTP as used and delete all OTPs for this email
+        // Clean up — delete all OTPs for this email after successful reset
         tokenRepository.deleteAllByEmail(email);
 
         return true;
     }
 
-    // ── Helper: generate 6-digit OTP ─────────────────────────────────────────
+    // ── Helper: generate secure 6-digit OTP ──────────────────────────────────
     private String generateOtp() {
         SecureRandom random = new SecureRandom();
-        int otp = 100000 + random.nextInt(900000); // always 6 digits
+        int otp = 100000 + random.nextInt(900000); // always 6 digits, never less
         return String.valueOf(otp);
     }
 
-    // ── Helper: send OTP email ────────────────────────────────────────────────
+    // ── Helper: send OTP email via Gmail SMTP ────────────────────────────────
     private void sendOtpEmail(String toEmail, String otp, String firstName) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);
@@ -115,7 +116,9 @@ public class PasswordResetService {
             "If you did not request this, please ignore this email.\n\n" +
             "— The CribUp Team"
         );
-        message.setFrom("crib.support@gmail.com"); // must match MAIL_USERNAME in env vars
+        // mailFrom is read from MAIL_USERNAME env var on Render
+        // Must match the Gmail account used for SMTP authentication
+        message.setFrom(mailFrom);
         mailSender.send(message);
     }
 }
