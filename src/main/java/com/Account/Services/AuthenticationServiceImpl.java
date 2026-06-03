@@ -240,37 +240,29 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     public JwtAuthenticationResponse signin(SigninRequest signinRequest) {
-        try {
-            User user = null;
+        User user = null;
 
-            // Login with email
-            if (signinRequest.getEmail() != null && !signinRequest.getEmail().isEmpty()) {
-                user = userRepository.findByEmail(signinRequest.getEmail())
-                        .orElseThrow(() -> new IllegalArgumentException("User not found"));
-            }
-            // Login with phone
-            else if (signinRequest.getPhone() != null && !signinRequest.getPhone().isEmpty()) {
-                user = userRepository.findByPhone(signinRequest.getPhone())
-                        .orElseThrow(() -> new IllegalArgumentException("User not found"));
-            } else {
-                throw new IllegalArgumentException("Email or phone is required");
-            }
-
-            if (!passwordEncoder.matches(signinRequest.getPassword(), user.getPassword()))
-                throw new IllegalArgumentException("Invalid password");
-
-            var jwt = jwtService.generateToken(user);
-            var refreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
-
-            JwtAuthenticationResponse response = new JwtAuthenticationResponse();
-            response.setToken(jwt);
-            response.setRefreshToken(refreshToken);
-            return response;
-
-        } catch (Exception e) {
-            System.out.println(e);
-            return null;
+        if (signinRequest.getEmail() != null && !signinRequest.getEmail().isEmpty()) {
+            user = userRepository.findByEmail(signinRequest.getEmail())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        } else if (signinRequest.getPhone() != null && !signinRequest.getPhone().isEmpty()) {
+            user = userRepository.findByPhone(signinRequest.getPhone())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        } else {
+            throw new IllegalArgumentException("Email or phone is required");
         }
+
+        if (!passwordEncoder.matches(signinRequest.getPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Invalid password");
+        }
+
+        String jwt = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
+
+        JwtAuthenticationResponse response = new JwtAuthenticationResponse();
+        response.setToken(jwt);
+        response.setRefreshToken(refreshToken);
+        return response;
     }
 
     public JwtAuthenticationResponse refereshToken(RefreshTokenRequest refreshTokenRequest) {
