@@ -58,6 +58,22 @@ public class UserServiceImpl implements UserService {
 	}
 
 	@Override
+	public User activateUser(long id) {
+		return userRepository.findById(id).map(user -> {
+			user.setActive(true);
+			return userRepository.save(user);
+		}).orElse(null);
+	}
+
+	@Override
+	public User deactivateUser(long id) {
+		return userRepository.findById(id).map(user -> {
+			user.setActive(false);
+			return userRepository.save(user);
+		}).orElse(null);
+	}
+
+	@Override
 	public boolean deteleUser(long id) {
 		// TODO Auto-generated method stub
 		return userRepository.findById(id).map( user ->{

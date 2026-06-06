@@ -7,7 +7,6 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,11 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.Account.Model.Role;
 import com.Account.Model.User;
 import com.Account.Services.UserService;
-
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/user")
@@ -39,6 +35,18 @@ public class UserController {
 	public ResponseEntity<List<User>> getAllUsers() {
 		List<User> user = userService.getAllUsers();
 		return new ResponseEntity<>(user, HttpStatus.OK);
+	}
+
+	@PutMapping("/{id}/activate")
+	public ResponseEntity<User> activateUser(@PathVariable long id) {
+		User user = userService.activateUser(id);
+		return user != null ? ResponseEntity.ok(user) : ResponseEntity.notFound().build();
+	}
+
+	@PutMapping("/{id}/deactivate")
+	public ResponseEntity<User> deactivateUser(@PathVariable long id) {
+		User user = userService.deactivateUser(id);
+		return user != null ? ResponseEntity.ok(user) : ResponseEntity.notFound().build();
 	}
 
 	@GetMapping("/{id}")

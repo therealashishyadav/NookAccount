@@ -18,10 +18,14 @@ public interface UserService {
 
 	User updateUser(long id, User updateUser);
 
+	User activateUser(long id);
+
+	User deactivateUser(long id);
+
 	boolean deteleUser(long id);
 
 	Role getRole(String email);
-	
+
     User getOwnerByEmail(String email);
 
 }
