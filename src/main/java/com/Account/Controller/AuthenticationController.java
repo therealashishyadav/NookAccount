@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.Account.DTO.GoogleLoginRequest;
 import com.Account.DTO.JwtAuthenticationResponse;
 import com.Account.DTO.RefreshTokenRequest;
 import com.Account.DTO.SigninRequest;
@@ -83,5 +84,9 @@ public class AuthenticationController {
 		Role roles = this.userService.getRole(email);
 		return ResponseEntity.ok(roles);
 	}
-
+	  @PostMapping("/google")
+	    public ResponseEntity<JwtAuthenticationResponse> googleLogin(@RequestBody GoogleLoginRequest request) {
+	        JwtAuthenticationResponse response = authenticationService.signinWithGoogle(request.getIdToken());
+	        return ResponseEntity.ok(response);
+	    }
 }

@@ -14,4 +14,5 @@ public interface AuthenticationService {
 
 	public JwtAuthenticationResponse refereshToken(RefreshTokenRequest refreshTokenRequest);
 
+    JwtAuthenticationResponse signinWithGoogle(String idToken);
 }
