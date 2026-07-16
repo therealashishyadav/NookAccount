@@ -104,21 +104,48 @@ public class PasswordResetService {
     }
 
     // ── Helper: send OTP email via Gmail SMTP ────────────────────────────────
+//    private void sendOtpEmail(String toEmail, String otp, String firstName) {
+//        SimpleMailMessage message = new SimpleMailMessage();
+//        message.setTo(toEmail);
+//        message.setSubject("Your Password Reset OTP — CribUp");
+//        message.setText(
+//            "Hi " + firstName + ",\n\n" +
+//            "You requested a password reset for your CribUp account.\n\n" +
+//            "Your OTP is: " + otp + "\n\n" +
+//            "This OTP is valid for 15 minutes. Do not share it with anyone.\n\n" +
+//            "If you did not request this, please ignore this email.\n\n" +
+//            "— The CribUp Team"
+//        );
+//        // mailFrom is read from MAIL_USERNAME env var on Render
+//        // Must match the Gmail account used for SMTP authentication
+//        message.setFrom(mailFrom);
+//        mailSender.send(message);
+//    }
+    
     private void sendOtpEmail(String toEmail, String otp, String firstName) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(toEmail);
-        message.setSubject("Your Password Reset OTP — CribUp");
-        message.setText(
-            "Hi " + firstName + ",\n\n" +
-            "You requested a password reset for your CribUp account.\n\n" +
-            "Your OTP is: " + otp + "\n\n" +
-            "This OTP is valid for 15 minutes. Do not share it with anyone.\n\n" +
-            "If you did not request this, please ignore this email.\n\n" +
-            "— The CribUp Team"
-        );
-        // mailFrom is read from MAIL_USERNAME env var on Render
-        // Must match the Gmail account used for SMTP authentication
-        message.setFrom(mailFrom);
-        mailSender.send(message);
+        try {
+            System.out.println("📧 Attempting to send OTP to: " + toEmail);
+            System.out.println("📧 Using MAIL_USERNAME: " + mailFrom);
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(toEmail);
+            message.setSubject("Your Password Reset OTP — CribUp");
+            message.setText(
+                "Hi " + firstName + ",\n\n" +
+                "You requested a password reset for your CribUp account.\n\n" +
+                "Your OTP is: " + otp + "\n\n" +
+                "This OTP is valid for 15 minutes. Do not share it with anyone.\n\n" +
+                "If you did not request this, please ignore this email.\n\n" +
+                "— The CribUp Team"
+            );
+            message.setFrom(mailFrom);
+
+            mailSender.send(message);
+            System.out.println("OTP email sent successfully to: " + toEmail);
+
+        } catch (Exception e) {
+            System.err.println("Failed to send OTP email: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }
