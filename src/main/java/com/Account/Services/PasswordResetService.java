@@ -39,27 +39,50 @@ public class PasswordResetService {
 
     // ── STEP 1: User submits email → generate OTP → send email ───────────────
     @Transactional
+//    public void sendOtp(String email) {
+//
+//        // Check user exists
+//        // Silently return if not — don't reveal whether email is registered
+//        Optional<User> userOpt = userRepository.findByEmail(email);
+//        if (userOpt.isEmpty()) {
+//            return;
+//        }
+//
+//        // Invalidate any existing unused OTP for this email
+//        tokenRepository.deleteAllByEmail(email);
+//
+//        // Generate a secure 6-digit OTP
+//        String otp = generateOtp();
+//
+//        // Save OTP to database — expires in 15 minutes
+//        PasswordResetToken resetToken = new PasswordResetToken(otp, email);
+//        tokenRepository.save(resetToken);
+//
+//        // Send OTP to user's email
+//        sendOtpEmail(email, otp, userOpt.get().getFirstName());
+//    }
+    
     public void sendOtp(String email) {
+        System.out.println("sendOtp called for: " + email);
 
-        // Check user exists
-        // Silently return if not — don't reveal whether email is registered
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) {
+            System.out.println("User not found: " + email);
             return;
         }
 
-        // Invalidate any existing unused OTP for this email
         tokenRepository.deleteAllByEmail(email);
-
-        // Generate a secure 6-digit OTP
         String otp = generateOtp();
+        System.out.println("Generated OTP: " + otp + " for: " + email);
 
-        // Save OTP to database — expires in 15 minutes
         PasswordResetToken resetToken = new PasswordResetToken(otp, email);
         tokenRepository.save(resetToken);
 
-        // Send OTP to user's email
+        System.out.println("OTP saved to database for: " + email);
+
         sendOtpEmail(email, otp, userOpt.get().getFirstName());
+
+        System.out.println("sendOtp completed for: " + email);
     }
 
     // ── STEP 2: User submits OTP → verify it ─────────────────────────────────
