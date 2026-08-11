@@ -36,24 +36,24 @@ public class PasswordResetService {
     // ── STEP 1: User submits email → generate OTP → send email ───────────────
     @Transactional
     public void sendOtp(String email) {
-        System.out.println("📧 sendOtp called for: " + email);
+        System.out.println("sendOtp called for: " + email);
 
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) {
-            System.out.println("⚠️ User not found: " + email);
+            System.out.println("User not found: " + email);
             return;
         }
 
         tokenRepository.deleteAllByEmail(email);
         String otp = generateOtp();
-        System.out.println("🔑 Generated OTP: " + otp + " for: " + email);
+        System.out.println("Generated OTP: " + otp + " for: " + email);
 
         PasswordResetToken resetToken = new PasswordResetToken(otp, email);
         tokenRepository.save(resetToken);
-        System.out.println("💾 OTP saved to database for: " + email);
+        System.out.println("OTP saved to database for: " + email);
 
         sendOtpEmail(email, otp, userOpt.get().getFirstName());
-        System.out.println("✅ sendOtp completed for: " + email);
+        System.out.println("sendOtp completed for: " + email);
     }
 
     // ── STEP 2: User submits OTP → verify it ─────────────────────────────────
@@ -94,8 +94,8 @@ public class PasswordResetService {
     // ── Helper: send OTP email via Gmail SMTP ────────────────────────────────
     private void sendOtpEmail(String toEmail, String otp, String firstName) {
         try {
-            System.out.println("📧 Attempting to send OTP to: " + toEmail);
-            System.out.println("📧 Using MAIL_USERNAME: " + mailFrom);
+            System.out.println("Attempting to send OTP to: " + toEmail);
+            System.out.println("Using MAIL_USERNAME: " + mailFrom);
 
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(toEmail);
@@ -111,10 +111,10 @@ public class PasswordResetService {
             message.setFrom(mailFrom);
 
             mailSender.send(message);
-            System.out.println("✅ OTP email sent successfully to: " + toEmail);
+            System.out.println("OTP email sent successfully to: " + toEmail);
 
         } catch (Exception e) {
-            System.err.println("❌ Failed to send OTP email: " + e.getMessage());
+            System.err.println("Failed to send OTP email: " + e.getMessage());
             e.printStackTrace();
         }
     }
