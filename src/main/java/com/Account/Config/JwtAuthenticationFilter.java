@@ -14,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.Account.Services.JwtService;
 import com.Account.Services.UserService;
 
+import io.jsonwebtoken.JwtException;               // ← ADD THIS IMPORT
 import io.micrometer.common.util.StringUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -37,34 +38,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 		final String authHeader = request.getHeader("Authorization");
 
-		final String jwt;
-		final String userEmail;
-
 		if (StringUtils.isEmpty(authHeader)
 				|| !org.apache.commons.lang3.StringUtils.startsWith(authHeader, "Bearer ")) {
 			filterChain.doFilter(request, response);
 			return;
 		}
-		
-		jwt = authHeader.substring(7);
-		userEmail = jwtService.extractUserName(jwt);
-		if (StringUtils.isNotEmpty(userEmail) && SecurityContextHolder.getContext().getAuthentication() == null) {
-			UserDetails userDetails = userService.userDetailsService().loadUserByUsername(userEmail);
 
-			if (jwtService.isTokenValid(jwt, userDetails)) {
-				SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+		final String jwt = authHeader.substring(7);
 
-				UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(userDetails, null,
-						userDetails.getAuthorities());
+		// ─── Wrap JWT parsing in try-catch to avoid 401 on permitAll endpoints ───
+		try {
+			String userEmail = jwtService.extractUserName(jwt);
+			if (StringUtils.isNotEmpty(userEmail) && SecurityContextHolder.getContext().getAuthentication() == null) {
+				UserDetails userDetails = userService.userDetailsService().loadUserByUsername(userEmail);
 
-				token.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+				if (jwtService.isTokenValid(jwt, userDetails)) {
+					SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
 
-				securityContext.setAuthentication(token);
-				SecurityContextHolder.setContext(securityContext);
+					UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(userDetails, null,
+							userDetails.getAuthorities());
+
+					token.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+					securityContext.setAuthentication(token);
+					SecurityContextHolder.setContext(securityContext);
+				}
 			}
-
+		} catch (JwtException e) {
+			// Log the error (optional) and continue without authentication.
+			// This prevents expired/malformed tokens from blocking permitAll endpoints.
+			logger.debug("Invalid JWT token: " + e.getMessage());
 		}
-		filterChain.doFilter(request, response);
 
+		filterChain.doFilter(request, response);
 	}
 }
