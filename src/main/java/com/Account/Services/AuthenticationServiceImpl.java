@@ -90,6 +90,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		JwtAuthenticationResponse response = new JwtAuthenticationResponse();
 		response.setToken(jwt);
 		response.setRefreshToken(refreshToken);
+		response.setEmail(user.getEmail());
+		response.setRole(user.getRole());
 		return response;
 	}
 
@@ -116,8 +118,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 			// 1. Verify Google Token
 			GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(),
 					new GsonFactory())
-					.setAudience(
-							Collections.singletonList("287517103772-o212pl3nd7i8mvbtmftv6hp6d1fgsivu.apps.googleusercontent.com"))
+					.setAudience(Collections
+							.singletonList("287517103772-o212pl3nd7i8mvbtmftv6hp6d1fgsivu.apps.googleusercontent.com"))
 					.build();
 
 			GoogleIdToken googleToken = verifier.verify(idToken);
