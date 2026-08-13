@@ -92,6 +92,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		response.setRefreshToken(refreshToken);
 		response.setEmail(user.getEmail());
 		response.setRole(user.getRole());
+		response.setFirstName(user.getFirstName());
+		response.setLastName(user.getLastName());
 		return response;
 	}
 
