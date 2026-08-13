@@ -4,7 +4,7 @@ import java.util.Date;
 import java.util.Map;
 import java.security.Key;
 import java.util.function.Function;
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import com.Account.Model.User;
@@ -18,6 +18,9 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JwtServiceImpl implements JwtService {
 
+	@Value("${app.jwt-secret}")
+	private String jwtSecret;
+	
     public String generateToken(UserDetails userDetails) {
         User user = (User) userDetails;
         return Jwts.builder()
@@ -40,8 +43,13 @@ public class JwtServiceImpl implements JwtService {
                 .compact();
     }
 
+//    private Key getSigninKey() {
+//        byte[] key = Decoders.BASE64.decode("q4JjknVjndVi5B1u6WqBl+S3rXWk4Hrp12qFZRfTcys=");
+//        return Keys.hmacShaKeyFor(key);
+//    }
+    
     private Key getSigninKey() {
-        byte[] key = Decoders.BASE64.decode("q4JjknVjndVi5B1u6WqBl+S3rXWk4Hrp12qFZRfTcys=");
+        byte[] key = Decoders.BASE64.decode(jwtSecret);
         return Keys.hmacShaKeyFor(key);
     }
 
