@@ -19,145 +19,144 @@ import lombok.Data;
 @Table(name = "user")
 public class User implements UserDetails {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Integer id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
 
-	private String firstName;
-	private String lastName;
-	private String email;
-	private String phone;
-	private String password;
-	private String confirm_password;
-	private Role role;
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String phone;
+    private String password;
+    private String confirm_password;
+    private Role role;
 
-	public String getConfirm_password() {
-		return confirm_password;
-	}
+    public String getConfirm_password() {
+        return confirm_password;
+    }
 
-	public void setConfirm_password(String confirm_password) {
-		this.confirm_password = confirm_password;
-	}
+    public void setConfirm_password(String confirm_password) {
+        this.confirm_password = confirm_password;
+    }
 
-	public String getPhone() {
-		return phone;
-	}
+    public String getPhone() {
+        return phone;
+    }
 
-	public void setPhone(String phone) {
-		this.phone = phone;
-	}
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
 
-	public Integer getId() {
-		return id;
-	}
+    public Integer getId() {
+        return id;
+    }
 
-	public void setId(Integer id) {
-		this.id = id;
-	}
+    public void setId(Integer id) {
+        this.id = id;
+    }
 
-	public String getFirstName() {
-		return firstName;
-	}
+    public String getFirstName() {
+        return firstName;
+    }
 
-	public void setFirstName(String firstName) {
-		this.firstName = firstName;
-	}
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
 
-	public String getLastName() {
-		return lastName;
-	}
+    public String getLastName() {
+        return lastName;
+    }
 
-	public void setLastName(String lastName) {
-		this.lastName = lastName;
-	}
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
 
-	public String getEmail() {
-		return email;
-	}
+    public String getEmail() {
+        return email;
+    }
 
-	public void setEmail(String email) {
-		this.email = email;
-	}
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-	private Boolean active = true;
+    private Boolean active = true;
 
-	public Role getRole() {
-		return role;
-	}
+    public Role getRole() {
+        return role;
+    }
 
-	public void setRole(Role role) {
-		this.role = role;
-	}
+    public void setRole(Role role) {
+        this.role = role;
+    }
 
-	public Boolean getActive() {
-		return active;
-	}
+    public Boolean getActive() {
+        return active;
+    }
 
-	public void setActive(Boolean active) {
-		this.active = active;
-	}
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
 
-	public void setPassword(String password) {
-		this.password = password;
-	}
+    public void setPassword(String password) {
+        this.password = password;
+    }
 
-	@Override
-	public Collection<? extends GrantedAuthority> getAuthorities() {
+    // @Override
+    // public Collection<? extends GrantedAuthority> getAuthorities() {
+    // 	return List.of(new SimpleGrantedAuthority(role.name()));
+    // }
+    // FIND AND REPLACE — uncomment the fix, delete the broken version:
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+    }
 
-		return List.of(new SimpleGrantedAuthority(role.name()));
-	}
+    @Override
+    public String getUsername() {
+        return email;
+    }
 
-//	@Override
-//	public Collection<? extends GrantedAuthority> getAuthorities() {
-//	    return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
-//	}
-	
-	@Override
-	public String getUsername() {
-		return email;
-	}
+    @Override
+    public String getPassword() {
+        return password;
+    }
 
-	@Override
-	public String getPassword() {
-		return password;
-	}
+    public User(Integer id, String firstName, String lastName, String email, String phone, String password,
+            String confirm_password, Role role) {
+        super();
+        this.id = id;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email;
+        this.phone = phone;
+        this.password = password;
+        this.confirm_password = confirm_password;
+        this.role = role;
+    }
 
-	public User(Integer id, String firstName, String lastName, String email, String phone, String password,
-			String confirm_password, Role role) {
-		super();
-		this.id = id;
-		this.firstName = firstName;
-		this.lastName = lastName;
-		this.email = email;
-		this.phone = phone;
-		this.password = password;
-		this.confirm_password = confirm_password;
-		this.role = role;
-	}
+    public User() {
+        super();
+        // TODO Auto-generated constructor stub
+    }
 
-	public User() {
-		super();
-		// TODO Auto-generated constructor stub
-	}
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
 
-	@Override
-	public boolean isAccountNonExpired() {
-		return true;
-	}
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
 
-	@Override
-	public boolean isAccountNonLocked() {
-		return true;
-	}
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
 
-	@Override
-	public boolean isCredentialsNonExpired() {
-		return true;
-	}
-
-	@Override
-	public boolean isEnabled() {
-		return true;
-	}
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
 
 }
